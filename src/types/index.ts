@@ -1,28 +1,37 @@
-export interface MapRegion {
-  id: string;
+// ── Region data (persisted) ──────────────────────────────────────
+export interface RegionData {
   name: string;
-  continent: "northwest" | "southern" | "eastern" | "island";
-  d: string; // SVG path data in viewBox 0 0 1567 668
-  fillColor: string;
-  tags?: string[];
+  color: string;
+  description: string;
 }
 
-export interface MapPin {
+// ── Pins (persisted) ─────────────────────────────────────────────
+export interface Pin {
   id: string;
-  x: number; // SVG coordinate
-  y: number; // SVG coordinate
-  type: "location" | "note" | "image" | "diamond";
+  type: "pin" | "city";
+  x: number;
+  y: number;
   label: string;
-  tags?: string[];
-  thumbnail?: string;
+  content: string; // markdown
+  regionId: string;
+  parentCityId?: string;
+  images: ImageAttachment[];
 }
 
-export interface TooltipData {
-  pin: MapPin;
-  screenX: number;
-  screenY: number;
+export interface ImageAttachment {
+  id: string;
+  filename: string;
+  dataUrl: string;
 }
 
+// ── App state (persisted in localStorage) ────────────────────────
+export interface AppState {
+  regions: Record<string, RegionData>;
+  pins: Pin[];
+  nextPinId: number;
+}
+
+// ── UI state (not persisted) ─────────────────────────────────────
 export type SidebarTab = "map" | "library" | "overlays" | "settings";
 
 export interface ViewBox {
@@ -31,3 +40,9 @@ export interface ViewBox {
   w: number;
   h: number;
 }
+
+export type PanelMode =
+  | { type: "none" }
+  | { type: "region"; regionId: string }
+  | { type: "pin"; pinId: string }
+  | { type: "new-pin"; x: number; y: number; regionId: string };

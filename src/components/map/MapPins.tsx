@@ -1,20 +1,20 @@
 "use client";
 
 import PinMarker from "./PinMarker";
-import type { MapPin } from "@/types";
+import type { Pin } from "@/types";
 
 interface MapPinsProps {
-  pins: MapPin[];
+  pins: Pin[];
   scale: number;
-  onPinClick: (pin: MapPin) => void;
-  onPinHover: (pin: MapPin | null) => void;
+  onPinClick: (pin: Pin) => void;
+  activePinId: string | null;
 }
 
 export default function MapPins({
   pins,
   scale,
   onPinClick,
-  onPinHover,
+  activePinId,
 }: MapPinsProps) {
   return (
     <g id="pins">
@@ -23,9 +23,8 @@ export default function MapPins({
           key={pin.id}
           pin={pin}
           scale={scale}
+          isActive={pin.id === activePinId}
           onClick={onPinClick}
-          onMouseEnter={onPinHover}
-          onMouseLeave={() => onPinHover(null)}
         />
       ))}
     </g>

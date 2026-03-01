@@ -10,6 +10,7 @@ interface AppShellProps {
   zoomLevel: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  panelOpen?: boolean;
 }
 
 export default function AppShell({

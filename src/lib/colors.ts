@@ -1,45 +1,52 @@
 export const MUTED_PALETTE = {
-  // Greens
-  dustySage: "#6B7F5E",
-  darkForest: "#4A5E3D",
+  // ── Reds ──────────────────────────────
+  dustyRose: "#B07070",
+  fadedCrimson: "#A65858",
+  // ── Red-Oranges ───────────────────────
+  fadedCoral: "#B87868",
+  terracotta: "#B8806A",
+  // ── Oranges ───────────────────────────
+  burntSienna: "#B8885C",
+  mutedAmber: "#C09468",
+  // ── Orange-Yellows ────────────────────
+  sandyTan: "#C4A882",
+  dustyPeach: "#C8AC80",
+  // ── Yellows ───────────────────────────
+  mutedGold: "#B8A860",
+  paleStraw: "#C8BA78",
+  // ── Yellow-Greens ─────────────────────
+  fadedLime: "#A0A860",
+  oliveGold: "#8E9A58",
+  // ── Greens ────────────────────────────
   mossOlive: "#7A8C5A",
   fadedMeadow: "#8A9E6E",
-
-  // Grays
-  stoneGray: "#8B9EA8",
-  silverMist: "#A0AAA4",
-  coolSteel: "#6D7B82",
-
-  // Tans / Browns / Earth
-  sandyTan: "#C4A882",
-  warmBrown: "#8E7B6B",
-  dustyPeach: "#BDA08A",
-  clayBrown: "#9E8A72",
-
-  // Warm muted
-  mutedAmber: "#B8885C",
-  dustyWheat: "#C4B078",
-  dustyRose: "#9E6B6B",
-  fadedCoral: "#A87868",
-
-  // Pinks / Mauves
-  dustyMauve: "#A87C8A",
-  fadedPlum: "#8A6878",
-
-  // Cool muted
-  dustyPlum: "#7D6B8A",
-  mutedLilac: "#9E94A8",
-  mutedSlate: "#5A5E78",
+  // ── Green-Teals ───────────────────────
+  dustySage: "#6B8E6E",
   sageTeal: "#6A8E82",
-  mutedCyan: "#7A9EA0",
-
-  // Darks
-  deepNavy: "#3A3E4A",
-  charcoal: "#2E3238",
-
-  // Accent yellows
-  mutedGold: "#B8A860",
-  paleYellow: "#C8BA78",
+  // ── Teals ─────────────────────────────
+  mutedTeal: "#5E8E8A",
+  deepLagoon: "#588880",
+  // ── Teal-Blues ─────────────────────────
+  mutedCyan: "#6A9EA0",
+  stormSea: "#6090A0",
+  // ── Blues ──────────────────────────────
+  stoneBlue: "#6888A8",
+  mutedDenim: "#5E78A0",
+  // ── Blue-Indigos ──────────────────────
+  mutedSlate: "#5A6898",
+  fadedIndigo: "#6870A0",
+  // ── Purples ───────────────────────────
+  dustyPlum: "#7D6B8A",
+  mutedLilac: "#8878A8",
+  // ── Purple-Magentas ───────────────────
+  fadedPlum: "#8A6888",
+  dustyMauve: "#A07C90",
+  // ── Magentas / Pinks ──────────────────
+  mutedBerry: "#A06880",
+  fadedRaspberry: "#A87088",
+  // ── Neutrals ──────────────────────────
+  warmBrown: "#8E7B6B",
+  stoneGray: "#8B9EA8",
 } as const;
 
 export function hexToHSL(hex: string): { h: number; s: number; l: number } {
