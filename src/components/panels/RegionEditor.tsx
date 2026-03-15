@@ -1,6 +1,7 @@
 "use client";
 
 import { useMap } from "@/lib/MapContext";
+import { useAuth } from "@/lib/AuthContext";
 import ColorPicker from "./ColorPicker";
 import MarkdownField from "./MarkdownField";
 import { MapPin, Building2 } from "lucide-react";
@@ -13,8 +14,10 @@ interface RegionEditorProps {
 
 export default function RegionEditor({ regionId, onPanelChange }: RegionEditorProps) {
   const { getRegionData, updateRegion, getPinsInRegion } = useMap();
+  const { role } = useAuth();
   const region = getRegionData(regionId);
   const pins = getPinsInRegion(regionId);
+  const readOnly = role !== "author";
 
   return (
     <div className="p-4 space-y-5">
@@ -23,36 +26,54 @@ export default function RegionEditor({ regionId, onPanelChange }: RegionEditorPr
         <label className="block text-[10px] font-display tracking-wider text-vanzemla-text-dim uppercase mb-1">
           Name
         </label>
-        <input
-          type="text"
-          value={region.name}
-          onChange={(e) => updateRegion(regionId, { name: e.target.value })}
-          placeholder="Unnamed Region"
-          className="w-full px-3 py-2 bg-vanzemla-bg border border-vanzemla-border rounded text-sm text-vanzemla-text focus:outline-none focus:border-vanzemla-accent"
-        />
+        {readOnly ? (
+          <p className="px-3 py-2 text-sm text-vanzemla-text">
+            {region.name || <span className="text-vanzemla-text-dim italic">Unnamed Region</span>}
+          </p>
+        ) : (
+          <input
+            type="text"
+            value={region.name}
+            onChange={(e) => updateRegion(regionId, { name: e.target.value })}
+            placeholder="Unnamed Region"
+            className="w-full px-3 py-2 bg-vanzemla-bg border border-vanzemla-border rounded text-sm text-vanzemla-text focus:outline-none focus:border-vanzemla-accent"
+          />
+        )}
       </div>
 
-      {/* Color */}
-      <div>
-        <label className="block text-[10px] font-display tracking-wider text-vanzemla-text-dim uppercase mb-1">
-          Color
-        </label>
-        <ColorPicker
-          value={region.color}
-          onChange={(color) => updateRegion(regionId, { color })}
-        />
-      </div>
+      {/* Color — hide for readers */}
+      {!readOnly && (
+        <div>
+          <label className="block text-[10px] font-display tracking-wider text-vanzemla-text-dim uppercase mb-1">
+            Color
+          </label>
+          <ColorPicker
+            value={region.color}
+            onChange={(color) => updateRegion(regionId, { color })}
+          />
+        </div>
+      )}
 
       {/* Description */}
       <div>
         <label className="block text-[10px] font-display tracking-wider text-vanzemla-text-dim uppercase mb-1">
           Description
         </label>
-        <MarkdownField
-          value={region.description}
-          onChange={(description) => updateRegion(regionId, { description })}
-          placeholder="Region lore, history, notes..."
-        />
+        {readOnly ? (
+          <div className="px-3 py-2 text-sm text-vanzemla-text">
+            {region.description ? (
+              <div dangerouslySetInnerHTML={{ __html: simpleMarkdown(region.description) }} />
+            ) : (
+              <p className="text-vanzemla-text-dim italic">No description</p>
+            )}
+          </div>
+        ) : (
+          <MarkdownField
+            value={region.description}
+            onChange={(description) => updateRegion(regionId, { description })}
+            placeholder="Region lore, history, notes..."
+          />
+        )}
       </div>
 
       {/* Pins in region */}
@@ -62,7 +83,7 @@ export default function RegionEditor({ regionId, onPanelChange }: RegionEditorPr
         </label>
         {pins.length === 0 ? (
           <p className="text-xs text-vanzemla-text-dim italic">
-            Double-click on the map to place a pin
+            {readOnly ? "No pins in this region" : "Double-click on the map to place a pin"}
           </p>
         ) : (
           <div className="space-y-1">
@@ -90,4 +111,21 @@ export default function RegionEditor({ regionId, onPanelChange }: RegionEditorPr
       </div>
     </div>
   );
+}
+
+function simpleMarkdown(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/`(.+?)`/g, "<code>$1</code>")
+    .replace(/\n\n/g, "</p><p>")
+    .replace(/\n/g, "<br/>")
+    .replace(/^/, "<p>")
+    .replace(/$/, "</p>");
 }

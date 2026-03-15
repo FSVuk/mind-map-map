@@ -7,7 +7,9 @@
       "Bash(node -e \"const fs=require\\(''fs''\\);const s=fs.readFileSync\\(''public/images/map_base.svg'',''utf8''\\);const m=s.match\\(/data-region=\"\"\\\\d+\"\"/g\\);console.log\\(m?m.length:0\\);if\\(m\\)console.log\\(m.map\\(x=>x.match\\(/\"\"\\(\\\\d+\\)\"\"/\\)[1]\\).join\\('',''\\)\\)\")",
       "Bash(node -e \"const fs=require\\(''fs''\\);const s=fs.readFileSync\\(''public/images/map_base.svg'',''utf8''\\);const m=s.match\\(/data-region/g\\);console.log\\(m?m.length:0\\)\")",
       "Bash(node -e \"console.log\\(''test''\\)\")",
-      "Bash(node scripts/promote-ocean-region.js)"
+      "Bash(node scripts/promote-ocean-region.js)",
+      "Bash(npm install @vercel/postgres @vercel/blob)",
+      "WebFetch(domain:neon.com)"
     ]
   }
 }

@@ -9,6 +9,7 @@ import {
   forwardRef,
 } from "react";
 import { useMap } from "@/lib/MapContext";
+import { useAuth } from "@/lib/AuthContext";
 import {
   REGION_PATHS,
   WATER_PATH,
@@ -39,6 +40,8 @@ interface MapContainerProps {
 const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
   function MapContainer({ onZoomChange, panelMode, onPanelChange }, ref) {
     const { getRegionData, state, addPin } = useMap();
+    const { role } = useAuth();
+    const isAuthor = role === "author";
     const svgRef = useRef<SVGSVGElement>(null);
 
     const defaultViewBox: ViewBox = { x: 0, y: 0, w: BASE_W, h: BASE_H };
@@ -210,9 +213,10 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       [hasDragged, onPanelChange]
     );
 
-    // ── Double-click to place pin ─────────────────────────────────
+    // ── Double-click to place pin (author only) ──────────────────
     const handleDoubleClick = useCallback(
       (e: React.MouseEvent) => {
+        if (!isAuthor) return;
         if (!activeRegionId) return;
         const el = svgRef.current;
         if (!el) return;
@@ -231,7 +235,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         });
         onPanelChange({ type: "pin", pinId: newPin.id });
       },
-      [activeRegionId, viewBox, addPin, onPanelChange]
+      [isAuthor, activeRegionId, viewBox, addPin, onPanelChange]
     );
 
     useImperativeHandle(ref, () => ({
@@ -321,7 +325,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
         {activeRegionId && (
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-vanzemla-sidebar/90 border border-vanzemla-border text-vanzemla-text-dim text-xs px-3 py-1.5 rounded-md pointer-events-none">
-            Double-click to place a pin · Esc to return
+            {isAuthor ? "Double-click to place a pin · " : ""}Esc to return
           </div>
         )}
       </div>

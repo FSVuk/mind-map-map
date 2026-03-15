@@ -6,13 +6,15 @@ import {
   useState,
   useCallback,
   useEffect,
+  useRef,
   type ReactNode,
 } from "react";
-import type { AppState, RegionData, Pin, ImageAttachment } from "@/types";
-import { loadState, saveState, getRegion, createDefaultState } from "./store";
+import type { AppState, RegionData, Pin } from "@/types";
+import { fetchState, persistState, uploadImage, getRegion, createDefaultState } from "./store";
 
 interface MapContextValue {
   state: AppState;
+  loaded: boolean;
 
   // Region actions
   getRegionData: (regionId: string) => RegionData;
@@ -34,6 +36,7 @@ const noop = () => {};
 const defaultState = createDefaultState();
 const defaultCtx: MapContextValue = {
   state: defaultState,
+  loaded: false,
   getRegionData: (id: string) => getRegion(defaultState, id),
   updateRegion: noop as MapContextValue["updateRegion"],
   addPin: (() => ({ id: "", type: "pin", x: 0, y: 0, label: "", content: "", regionId: "", images: [] })) as MapContextValue["addPin"],
@@ -47,21 +50,46 @@ const defaultCtx: MapContextValue = {
 
 const MapContext = createContext<MapContextValue>(defaultCtx);
 
+const SAVE_DEBOUNCE_MS = 1000;
+
 export function MapProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(createDefaultState);
   const [loaded, setLoaded] = useState(false);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
-  // Load from localStorage on mount
+  // Load from API on mount
   useEffect(() => {
-    setState(loadState());
-    setLoaded(true);
+    fetchState()
+      .then((s) => {
+        setState(s);
+        setLoaded(true);
+      })
+      .catch(() => {
+        setLoaded(true);
+      });
   }, []);
 
-  // Auto-save on state changes (skip initial load)
+  // Debounced auto-save to API on state changes
   useEffect(() => {
-    if (loaded) {
-      saveState(state);
+    if (!loaded) return;
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      persistState(stateRef.current).catch((e) =>
+        console.warn("Failed to save state:", e)
+      );
+    }, SAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, [state, loaded]);
 
   const getRegionData = useCallback(
@@ -108,7 +136,6 @@ export function MapProvider({ children }: { children: ReactNode }) {
   const deletePin = useCallback((pinId: string) => {
     setState((prev) => ({
       ...prev,
-      // Also delete child pins of a city
       pins: prev.pins.filter(
         (p) => p.id !== pinId && p.parentCityId !== pinId
       ),
@@ -131,16 +158,12 @@ export function MapProvider({ children }: { children: ReactNode }) {
 
   const addImage = useCallback(
     async (pinId: string, file: File) => {
-      const dataUrl = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
+      const { url, filename } = await uploadImage(file);
 
-      const img: ImageAttachment = {
+      const img = {
         id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        filename: file.name,
-        dataUrl,
+        filename,
+        dataUrl: url,
       };
 
       setState((prev) => ({
@@ -168,6 +191,7 @@ export function MapProvider({ children }: { children: ReactNode }) {
     <MapContext.Provider
       value={{
         state,
+        loaded,
         getRegionData,
         updateRegion,
         addPin,
