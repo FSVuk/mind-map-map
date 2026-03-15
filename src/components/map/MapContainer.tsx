@@ -277,7 +277,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
                   fillRule="evenodd"
                   className="transition-[filter] duration-150"
                   style={{
-                    filter: hovered ? "brightness(1.3)" : active ? "brightness(1.15)" : undefined,
+                    filter: hovered ? "brightness(1.3)" : undefined,
                     cursor: "pointer",
                   }}
                   onClick={(e) => { e.stopPropagation(); handleRegionClick(rp.id); }}
@@ -289,6 +289,24 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
               );
             })}
           </g>
+
+          {/* Selection outline overlay — rendered above regions so it isn't clipped */}
+          {activeRegionId && (() => {
+            const activeRP = REGION_PATHS.find((rp) => rp.id === activeRegionId);
+            if (!activeRP) return null;
+            const outlineWidth = Math.max(2, viewBox.w * 0.003);
+            return (
+              <path
+                d={activeRP.d}
+                fill="none"
+                fillRule="evenodd"
+                stroke="#FFD700"
+                strokeWidth={outlineWidth}
+                strokeLinejoin="round"
+                style={{ pointerEvents: "none" }}
+              />
+            );
+          })()}
 
           {WATER_PATH && <path d={WATER_PATH} fill={OCEAN_COLOR} fillRule="evenodd" style={{ pointerEvents: "none" }} />}
           {BORDER_PATH && <path d={BORDER_PATH} fill="#000000" fillRule="evenodd" style={{ pointerEvents: "none" }} />}

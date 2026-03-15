@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, Search, Minus, Plus } from "lucide-react";
+import { Search, Minus, Plus } from "lucide-react";
 
 interface TopBarProps {
   zoomLevel: number;
@@ -13,9 +13,6 @@ export default function TopBar({ zoomLevel, onZoomIn, onZoomOut }: TopBarProps) 
     <header className="fixed top-0 left-0 right-0 h-12 flex items-center justify-between px-4 z-40 bg-vanzemla-sidebar border-b border-vanzemla-border">
       {/* Left section */}
       <div className="flex items-center gap-4">
-        <button className="text-vanzemla-text-dim hover:text-vanzemla-text transition-colors">
-          <Menu size={20} strokeWidth={1.5} />
-        </button>
         <h1 className="text-lg tracking-[0.3em] font-display text-vanzemla-text select-none">
           VANZEMLA
         </h1>

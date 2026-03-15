@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Border Gap Marker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #1a1a2e; color: #eee; font-family: monospace; }
+    .controls {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: #1a1a2e; padding: 10px 20px; border-bottom: 1px solid #333;
+      display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    }
+    .controls label { font-size: 13px; display: flex; align-items: center; gap: 6px; }
+    .controls input[type="range"] { width: 120px; }
+    .controls button {
+      background: #4A90D9; color: #fff; border: none; padding: 6px 14px;
+      border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 12px;
+    }
+    .controls button:hover { background: #5EAFD4; }
+    .controls button.danger { background: #9E6B6B; }
+    #output {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+      background: #0d0d1a; padding: 10px 20px; border-top: 1px solid #333;
+      font-size: 11px; max-height: 180px; overflow-y: auto;
+    }
+    #output pre { white-space: pre-wrap; color: #8f8; }
+    .canvas-container {
+      margin-top: 50px; margin-bottom: 200px; position: relative;
+      display: inline-block;
+    }
+    .canvas-container img,
+    .canvas-container object {
+      position: absolute; top: 0; left: 0;
+      -webkit-user-drag: none;
+      user-select: none;
+      pointer-events: none;
+    }
+    .marker {
+      position: absolute; width: 12px; height: 12px; border-radius: 50%;
+      background: #ff4444; border: 2px solid #fff; transform: translate(-50%, -50%);
+      cursor: pointer; z-index: 50;
+    }
+    .marker:hover { background: #ff8888; }
+    .marker-label {
+      position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+      font-size: 10px; color: #ff4444; white-space: nowrap; pointer-events: none;
+    }
+    .line-segment {
+      position: absolute; z-index: 45; pointer-events: none;
+    }
+    .mode-indicator {
+      padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold;
+    }
+    .mode-indicator.mark { background: #ff4444; color: #fff; }
+    .mode-indicator.draw { background: #44ff44; color: #000; }
+    .instructions { font-size: 11px; color: #888; max-width: 400px; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <label>
+      Original:
+      <input type="range" id="origOpacity" min="0" max="100" value="100">
+    </label>
+    <label>
+      Traced SVG:
+      <input type="range" id="svgOpacity" min="0" max="100" value="50">
+    </label>
+    <label>
+      Rivers:
+      <input type="range" id="riverOpacity" min="0" max="100" value="50">
+    </label>
+    <span class="mode-indicator mark" id="modeLabel">MARK GAPS</span>
+    <button onclick="toggleMode()">Toggle Mode (M)</button>
+    <button onclick="undoLast()">Undo (Z)</button>
+    <button class="danger" onclick="clearAll()">Clear All</button>
+    <button onclick="exportData()">Export Gaps JSON</button>
+    <div class="instructions">
+      <b>MARK mode:</b> Click to place gap markers.<br>
+      <b>DRAW mode:</b> Click to draw missing border segments (point by point). Double-click to finish a segment.
+    </div>
+  </div>
+
+  <div class="canvas-container" id="container">
+    <img id="origImg" src="../public/images/map_regions_outline.png" />
+  </div>
+
+  <div id="output">
+    <pre id="outputText">Click on the map to mark missing borders. Press M to switch between MARK and DRAW modes.</pre>
+  </div>
+
+  <script>
+    let mode = 'mark'; // 'mark' or 'draw'
+    let markers = [];
+    let segments = []; // array of arrays of points
+    let currentSegment = [];
+    let markerCount = 0;
+
+    const container = document.getElementById('container');
+    const origImg = document.getElementById('origImg');
+    const outputText = document.getElementById('outputText');
+    const modeLabel = document.getElementById('modeLabel');
+
+    // Wait for image to load to set container size
+    origImg.onload = () => {
+      container.style.width = origImg.naturalWidth + 'px';
+      container.style.height = origImg.naturalHeight + 'px';
+      origImg.style.width = origImg.naturalWidth + 'px';
+
+      // Load traced SVG as overlay
+      const svgObj = document.createElement('img');
+      svgObj.id = 'svgOverlay';
+      svgObj.src = '../public/images/map_traced.svg';
+      svgObj.style.width = origImg.naturalWidth + 'px';
+      svgObj.style.height = origImg.naturalHeight + 'px';
+      svgObj.style.opacity = '0.5';
+      svgObj.style.pointerEvents = 'none';
+      container.appendChild(svgObj);
+
+      // Load rivers SVG as overlay
+      const riverObj = document.createElement('img');
+      riverObj.id = 'riverOverlay';
+      riverObj.src = '../public/images/map_rivers.svg';
+      riverObj.style.width = origImg.naturalWidth + 'px';
+      riverObj.style.height = origImg.naturalHeight + 'px';
+      riverObj.style.opacity = '0.5';
+      riverObj.style.pointerEvents = 'none';
+      container.appendChild(riverObj);
+    };
+
+    // Opacity controls
+    document.getElementById('origOpacity').oninput = (e) => {
+      origImg.style.opacity = e.target.value / 100;
+    };
+    document.getElementById('svgOpacity').oninput = (e) => {
+      const overlay = document.getElementById('svgOverlay');
+      if (overlay) overlay.style.opacity = e.target.value / 100;
+    };
+    document.getElementById('riverOpacity').oninput = (e) => {
+      const overlay = document.getElementById('riverOverlay');
+      if (overlay) overlay.style.opacity = e.target.value / 100;
+    };
+
+    // Click handler
+    container.addEventListener('click', (e) => {
+      if (e.target.classList.contains('marker')) return;
+      const rect = container.getBoundingClientRect();
+      const x = Math.round(e.clientX - rect.left);
+      const y = Math.round(e.clientY - rect.top);
+
+      if (mode === 'mark') {
+        addMarker(x, y);
+      } else {
+        addDrawPoint(x, y);
+      }
+      updateOutput();
+    });
+
+    container.addEventListener('dblclick', (e) => {
+      if (mode === 'draw' && currentSegment.length > 1) {
+        finishSegment();
+        updateOutput();
+      }
+    });
+
+    function addMarker(x, y) {
+      markerCount++;
+      const marker = { id: markerCount, x, y };
+      markers.push(marker);
+
+      const el = document.createElement('div');
+      el.className = 'marker';
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.dataset.id = markerCount;
+      el.innerHTML = `<span class="marker-label">${markerCount}</span>`;
+      el.onclick = (e) => {
+        e.stopPropagation();
+        removeMarker(markerCount, el);
+      };
+      container.appendChild(el);
+    }
+
+    function addDrawPoint(x, y) {
+      currentSegment.push({ x, y });
+
+      // Draw a dot
+      const dot = document.createElement('div');
+      dot.className = 'marker';
+      dot.style.left = x + 'px';
+      dot.style.top = y + 'px';
+      dot.style.background = '#44ff44';
+      dot.style.width = '8px';
+      dot.style.height = '8px';
+      dot.dataset.segType = 'draw';
+      container.appendChild(dot);
+
+      // Draw line to previous point
+      if (currentSegment.length > 1) {
+        const prev = currentSegment[currentSegment.length - 2];
+        drawLine(prev.x, prev.y, x, y);
+      }
+    }
+
+    function finishSegment() {
+      if (currentSegment.length > 1) {
+        segments.push([...currentSegment]);
+      }
+      currentSegment = [];
+    }
+
+    function drawLine(x1, y1, x2, y2) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.classList.add('line-segment');
+      svg.style.left = '0px';
+      svg.style.top = '0px';
+      svg.style.width = container.style.width;
+      svg.style.height = container.style.height;
+      svg.innerHTML = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#44ff44" stroke-width="2"/>`;
+      container.appendChild(svg);
+    }
+
+    function removeMarker(id, el) {
+      markers = markers.filter(m => m.id !== id);
+      el.remove();
+      updateOutput();
+    }
+
+    function toggleMode() {
+      if (mode === 'draw' && currentSegment.length > 1) {
+        finishSegment();
+      }
+      mode = mode === 'mark' ? 'draw' : 'mark';
+      modeLabel.textContent = mode === 'mark' ? 'MARK GAPS' : 'DRAW BORDERS';
+      modeLabel.className = 'mode-indicator ' + mode;
+      updateOutput();
+    }
+
+    function undoLast() {
+      if (mode === 'mark' && markers.length > 0) {
+        const last = markers.pop();
+        const el = container.querySelector(`.marker[data-id="${last.id}"]`);
+        if (el) el.remove();
+      } else if (mode === 'draw' && currentSegment.length > 0) {
+        currentSegment.pop();
+        // Remove last draw dot
+        const dots = container.querySelectorAll('[data-seg-type="draw"]');
+        if (dots.length) dots[dots.length - 1].remove();
+        const lines = container.querySelectorAll('.line-segment');
+        if (lines.length) lines[lines.length - 1].remove();
+      }
+      updateOutput();
+    }
+
+    function clearAll() {
+      markers = [];
+      segments = [];
+      currentSegment = [];
+      markerCount = 0;
+      container.querySelectorAll('.marker, .line-segment').forEach(el => el.remove());
+      updateOutput();
+    }
+
+    function updateOutput() {
+      let text = `=== GAP MARKERS (${markers.length}) ===\n`;
+      markers.forEach(m => {
+        text += `  #${m.id}: (${m.x}, ${m.y})\n`;
+      });
+      if (segments.length || currentSegment.length) {
+        text += `\n=== DRAWN SEGMENTS (${segments.length} complete, ${currentSegment.length > 0 ? '1 in progress' : 'none in progress'}) ===\n`;
+        segments.forEach((seg, i) => {
+          text += `  Segment ${i + 1}: ${seg.map(p => `(${p.x},${p.y})`).join(' -> ')}\n`;
+        });
+        if (currentSegment.length > 0) {
+          text += `  [Current]: ${currentSegment.map(p => `(${p.x},${p.y})`).join(' -> ')}\n`;
+        }
+      }
+      outputText.textContent = text;
+    }
+
+    function exportData() {
+      if (mode === 'draw' && currentSegment.length > 1) {
+        finishSegment();
+      }
+      const data = { markers, segments };
+      const json = JSON.stringify(data, null, 2);
+      outputText.textContent = json;
+      navigator.clipboard.writeText(json).then(() => {
+        alert('Copied to clipboard! Paste it to Claude.');
+      }).catch(() => {
+        alert('JSON shown below — copy it manually.');
+      });
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'm' || e.key === 'M') toggleMode();
+      if (e.key === 'z' || e.key === 'Z') undoLast();
+    });
+  </script>
+</body>
+</html>

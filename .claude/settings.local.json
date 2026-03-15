@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx next build)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(node -e \"const fs = require\\(''fs''\\); const svg = fs.readFileSync\\(''C:/Users/alexa/OneDrive/Documents/mind-map-map/public/images/map_base.svg'',''utf8''\\); const matches = svg.match\\(/data-region=\"\"\\\\d+\"\"/g\\); console.log\\(''Total data-region attributes:'', matches ? matches.length : 0\\); if\\(matches\\) { const ids = matches.map\\(m => m.match\\(/\"\"\\(\\\\d+\\)\"\"/\\)[1]\\); console.log\\(''Region IDs:'', ids.join\\('', ''\\)\\); }\")",
+      "Bash(node -e \"const fs=require\\(''fs''\\);const s=fs.readFileSync\\(''public/images/map_base.svg'',''utf8''\\);const m=s.match\\(/data-region=\"\"\\\\d+\"\"/g\\);console.log\\(m?m.length:0\\);if\\(m\\)console.log\\(m.map\\(x=>x.match\\(/\"\"\\(\\\\d+\\)\"\"/\\)[1]\\).join\\('',''\\)\\)\")",
+      "Bash(node -e \"const fs=require\\(''fs''\\);const s=fs.readFileSync\\(''public/images/map_base.svg'',''utf8''\\);const m=s.match\\(/data-region/g\\);console.log\\(m?m.length:0\\)\")",
+      "Bash(node -e \"console.log\\(''test''\\)\")",
+      "Bash(node scripts/promote-ocean-region.js)"
+    ]
+  }
+}

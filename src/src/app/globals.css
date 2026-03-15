@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0B1120;
+  --bg-sidebar: #0D1525;
+  --bg-topbar: #0D1525;
+  --grid-color: #1A2540;
+  --text-primary: #C8D0DC;
+  --text-secondary: #6B7A90;
+  --accent: #3B82A0;
+  --accent-bright: #5EAFD4;
+  --border: #1E2A40;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+::selection {
+  background: rgba(59, 130, 160, 0.3);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* SVG region hover transitions */
+.map-region {
+  transition: filter 0.2s ease, opacity 0.2s ease;
+  cursor: pointer;
+}
+.map-region:hover {
+  filter: brightness(1.3);
+}
+.map-region.active {
+  filter: brightness(1.4) drop-shadow(0 0 6px rgba(59, 130, 160, 0.5));
+}
+
+/* Tooltip animation */
+.tooltip-enter {
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pin hover */
+.map-pin {
+  transition: transform 0.15s ease;
+  cursor: pointer;
+}
+.map-pin:hover {
+  transform: scale(1.15);
+}

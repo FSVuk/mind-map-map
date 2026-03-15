@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Map Paint Editor</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Top toolbar */
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  #toolbar .separator {
+    width: 1px;
+    height: 28px;
+    background: #0f3460;
+    margin: 0 4px;
+  }
+  #toolbar button {
+    padding: 6px 14px;
+    border: 1px solid #0f3460;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+  #toolbar button:hover { background: #0f3460; }
+  #toolbar button.active {
+    background: #e94560;
+    border-color: #e94560;
+    color: white;
+  }
+  #toolbar label {
+    font-size: 12px;
+    color: #aaa;
+  }
+  #toolbar input[type="range"] {
+    width: 80px;
+    accent-color: #e94560;
+  }
+  #toolbar select {
+    padding: 4px 8px;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  /* Main area */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Left palette panel */
+  #palette-panel {
+    width: 220px;
+    background: #16213e;
+    border-right: 1px solid #0f3460;
+    padding: 12px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  #palette-panel h3 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 8px;
+  }
+  #current-color-display {
+    width: 100%;
+    height: 48px;
+    border-radius: 6px;
+    border: 2px solid #0f3460;
+    margin-bottom: 12px;
+  }
+  #color-input-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    align-items: center;
+  }
+  #color-picker {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  #hex-input {
+    flex: 1;
+    padding: 6px 8px;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 13px;
+  }
+  .palette-section { margin-bottom: 16px; }
+  .palette-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 3px;
+  }
+  .palette-swatch {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 3px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .palette-swatch:hover { transform: scale(1.15); z-index: 1; }
+  .palette-swatch.selected { border-color: #e94560; transform: scale(1.15); }
+
+  /* Canvas area */
+  #canvas-container {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    cursor: crosshair;
+  }
+  #canvas-container canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    image-rendering: pixelated;
+  }
+
+  /* Status bar */
+  #statusbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 4px 12px;
+    background: #16213e;
+    border-top: 1px solid #0f3460;
+    font-size: 12px;
+    color: #888;
+    flex-shrink: 0;
+  }
+  #statusbar .info { color: #aaa; }
+
+  /* Zoom indicator */
+  #zoom-indicator {
+    position: absolute;
+    bottom: 40px;
+    right: 16px;
+    background: rgba(22, 33, 62, 0.9);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #aaa;
+    pointer-events: none;
+  }
+
+  /* Tolerance slider popup */
+  #fill-tolerance-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  #fill-tolerance-value {
+    font-size: 12px;
+    color: #aaa;
+    min-width: 24px;
+    text-align: center;
+  }
+
+  /* Loading overlay */
+  #loading {
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 26, 46, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    font-size: 18px;
+    color: #e94560;
+  }
+  #loading.hidden { display: none; }
+
+  /* Image load buttons */
+  .load-section {
+    margin-bottom: 16px;
+  }
+  .load-section button {
+    width: 100%;
+    padding: 6px;
+    margin-bottom: 4px;
+    border: 1px solid #0f3460;
+    background: #1a1a2e;
+    color: #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    text-align: left;
+    padding-left: 10px;
+  }
+  .load-section button:hover { background: #0f3460; }
+</style>
+</head>
+<body>
+
+<div id="loading">Loading...</div>
+
+<!-- Top Toolbar -->
+<div id="toolbar">
+  <button id="tool-fill" class="active" title="Flood Fill (F)">&#x1F4A7; Fill</button>
+  <button id="tool-brush" title="Brush (B)">&#x1F58C; Brush</button>
+  <button id="tool-eraser" title="Eraser (E)">&#x1F6AB; Eraser</button>
+  <button id="tool-eyedropper" title="Eyedropper (I)">&#x1F4A8; Pick</button>
+  <button id="tool-pan" title="Pan (Space+drag)">&#9995; Pan</button>
+
+  <div class="separator"></div>
+
+  <label>Brush:</label>
+  <input type="range" id="brush-size" min="1" max="50" value="8">
+  <span id="brush-size-label" style="font-size:12px;color:#aaa;min-width:28px;">8px</span>
+
+  <div class="separator"></div>
+
+  <div id="fill-tolerance-group">
+    <label>Tolerance:</label>
+    <input type="range" id="fill-tolerance" min="0" max="128" value="32">
+    <span id="fill-tolerance-value">32</span>
+  </div>
+
+  <div class="separator"></div>
+
+  <button id="btn-undo" title="Undo (Ctrl+Z)">&#x21A9; Undo</button>
+  <button id="btn-redo" title="Redo (Ctrl+Y)">&#x21AA; Redo</button>
+
+  <div class="separator"></div>
+
+  <button id="btn-export" title="Export as PNG">&#x1F4BE; Export PNG</button>
+  <button id="btn-load-file" title="Load image from disk">&#x1F4C2; Load Image</button>
+  <input type="file" id="file-input" accept="image/*" style="display:none">
+</div>
+
+<!-- Main Area -->
+<div id="main">
+  <!-- Left Palette -->
+  <div id="palette-panel">
+    <div id="current-color-display" style="background:#8e9c82;"></div>
+    <div id="color-input-row">
+      <input type="color" id="color-picker" value="#8e9c82">
+      <input type="text" id="hex-input" value="#8e9c82" maxlength="7">
+    </div>
+
+    <div class="load-section">
+      <h3>Load Map</h3>
+      <button onclick="loadMapImage('map_colored_dark_clean.png')">Colored (cleaned)</button>
+      <button onclick="loadMapImage('map_colored_dark.png')">Colored (dark)</button>
+      <button onclick="loadMapImage('map_patched_bw.png')">Borders B&W</button>
+      <button onclick="loadMapImage('map_final_bw.png')">Final B&W</button>
+      <button onclick="loadMapImage('map_regions.png')">Original Regions</button>
+    </div>
+
+    <div class="palette-section">
+      <h3>70s Sci-Fi Palette</h3>
+      <div class="palette-grid" id="palette-70s"></div>
+    </div>
+
+    <div class="palette-section">
+      <h3>Map Essentials</h3>
+      <div class="palette-grid" id="palette-essentials"></div>
+    </div>
+
+    <div class="palette-section">
+      <h3>Recent Colors</h3>
+      <div class="palette-grid" id="palette-recent"></div>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div id="canvas-container">
+    <canvas id="paint-canvas"></canvas>
+    <div id="zoom-indicator">100%</div>
+  </div>
+</div>
+
+<!-- Status Bar -->
+<div id="statusbar">
+  <span id="status-pos" class="info">0, 0</span>
+  <span id="status-size" class="info">-</span>
+  <span id="status-tool" class="info">Fill</span>
+  <span id="status-color" class="info">#8e9c82</span>
+  <span id="status-undo" class="info">Undo: 0</span>
+</div>
+
+<script>
+// ============================
+// State
+// ============================
+const state = {
+  tool: 'fill',       // fill, brush, eraser, eyedropper, pan
+  color: [142, 156, 130],
+  brushSize: 8,
+  fillTolerance: 32,
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  isPanning: false,
+  isDrawing: false,
+  lastX: 0,
+  lastY: 0,
+  panStartX: 0,
+  panStartY: 0,
+  panStartPanX: 0,
+  panStartPanY: 0,
+  spaceDown: false,
+  undoStack: [],
+  redoStack: [],
+  maxUndo: 30,
+  recentColors: [],
+  imgWidth: 0,
+  imgHeight: 0,
+};
+
+// ============================
+// Palettes
+// ============================
+const PALETTE_70S = [
+  [142, 156, 130], // sage green
+  [168, 155, 134], // warm taupe
+  [130, 148, 155], // steel blue
+  [175, 160, 120], // dusty wheat
+  [148, 130, 142], // mauve gray
+  [155, 142, 118], // sandy brown
+  [120, 140, 130], // muted teal
+  [165, 145, 140], // dusty rose
+  [140, 150, 115], // olive
+  [155, 148, 160], // lavender gray
+  [170, 150, 110], // amber
+  [128, 138, 148], // slate
+  [158, 140, 128], // clay
+  [135, 155, 140], // seafoam
+  [145, 135, 150], // plum mist
+  [160, 155, 130], // khaki
+  [138, 128, 140], // dusty violet
+  [150, 160, 135], // pale moss
+  [165, 148, 148], // blush
+  [130, 145, 155], // powder blue
+  [158, 155, 138], // parchment
+  [140, 130, 125], // cocoa
+  [148, 158, 150], // mint gray
+  [162, 138, 130], // terra cotta
+  [135, 148, 135], // lichen
+  [155, 142, 155], // heather
+  [145, 155, 128], // spring olive
+  [168, 158, 145], // oatmeal
+  [128, 140, 155], // denim
+  [150, 138, 135], // mushroom
+  [140, 155, 148], // eucalyptus
+  [160, 145, 138], // sienna mist
+  [132, 142, 132], // sage dark
+  [155, 150, 158], // silver lilac
+  [148, 140, 118], // bronze
+  [138, 150, 142], // verdigris
+];
+
+const PALETTE_ESSENTIALS = [
+  [30, 110, 220],   // ocean blue
+  [14, 22, 42],     // deep navy
+  [0, 0, 0],        // black (borders)
+  [255, 255, 255],  // white
+  [8, 12, 28],      // near-black
+  [45, 75, 110],    // muted river blue
+  [70, 50, 30],     // dark brown (mountains)
+  [120, 90, 60],    // light brown
+  [40, 80, 40],     // forest green
+  [200, 180, 160],  // light sand
+  [80, 80, 80],     // dark gray
+  [180, 180, 180],  // light gray
+];
+
+// ============================
+// DOM elements
+// ============================
+const canvas = document.getElementById('paint-canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const container = document.getElementById('canvas-container');
+const loading = document.getElementById('loading');
+
+// ============================
+// Palette rendering
+// ============================
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(c => c.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToRgb(hex) {
+  hex = hex.replace('#', '');
+  return [parseInt(hex.substr(0,2),16), parseInt(hex.substr(2,2),16), parseInt(hex.substr(4,2),16)];
+}
+
+function renderPalette(containerId, colors) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  colors.forEach(([r, g, b]) => {
+    const swatch = document.createElement('div');
+    swatch.className = 'palette-swatch';
+    swatch.style.background = rgbToHex(r, g, b);
+    swatch.title = rgbToHex(r, g, b);
+    swatch.addEventListener('click', () => setColor(r, g, b));
+    el.appendChild(swatch);
+  });
+}
+
+function renderRecentPalette() {
+  renderPalette('palette-recent', state.recentColors);
+}
+
+function setColor(r, g, b) {
+  state.color = [r, g, b];
+  const hex = rgbToHex(r, g, b);
+  document.getElementById('current-color-display').style.background = hex;
+  document.getElementById('color-picker').value = hex;
+  document.getElementById('hex-input').value = hex;
+  document.getElementById('status-color').textContent = hex;
+
+  // Update palette selection
+  document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
+  document.querySelectorAll('.palette-swatch').forEach(s => {
+    if (s.style.background === `rgb(${r}, ${g}, ${b})` ||
+        s.title === hex) {
+      s.classList.add('selected');
+    }
+  });
+
+  // Add to recent
+  const exists = state.recentColors.findIndex(c => c[0]===r && c[1]===g && c[2]===b);
+  if (exists >= 0) state.recentColors.splice(exists, 1);
+  state.recentColors.unshift([r, g, b]);
+  if (state.recentColors.length > 18) state.recentColors.pop();
+  renderRecentPalette();
+}
+
+renderPalette('palette-70s', PALETTE_70S);
+renderPalette('palette-essentials', PALETTE_ESSENTIALS);
+
+// ============================
+// Tool selection
+// ============================
+const toolButtons = {
+  fill: document.getElementById('tool-fill'),
+  brush: document.getElementById('tool-brush'),
+  eraser: document.getElementById('tool-eraser'),
+  eyedropper: document.getElementById('tool-eyedropper'),
+  pan: document.getElementById('tool-pan'),
+};
+
+function setTool(tool) {
+  state.tool = tool;
+  Object.values(toolButtons).forEach(b => b.classList.remove('active'));
+  toolButtons[tool].classList.add('active');
+  document.getElementById('status-tool').textContent =
+    tool.charAt(0).toUpperCase() + tool.slice(1);
+
+  // Cursor
+  if (tool === 'pan') container.style.cursor = 'grab';
+  else if (tool === 'eyedropper') container.style.cursor = 'crosshair';
+  else container.style.cursor = 'crosshair';
+}
+
+Object.entries(toolButtons).forEach(([tool, btn]) => {
+  btn.addEventListener('click', () => setTool(tool));
+});
+
+// ============================
+// Brush / tolerance sliders
+// ============================
+const brushSlider = document.getElementById('brush-size');
+const brushLabel = document.getElementById('brush-size-label');
+brushSlider.addEventListener('input', () => {
+  state.brushSize = parseInt(brushSlider.value);
+  brushLabel.textContent = state.brushSize + 'px';
+});
+
+const tolSlider = document.getElementById('fill-tolerance');
+const tolLabel = document.getElementById('fill-tolerance-value');
+tolSlider.addEventListener('input', () => {
+  state.fillTolerance = parseInt(tolSlider.value);
+  tolLabel.textContent = state.fillTolerance;
+});
+
+// ============================
+// Color picker / hex input
+// ============================
+document.getElementById('color-picker').addEventListener('input', (e) => {
+  const [r, g, b] = hexToRgb(e.target.value);
+  setColor(r, g, b);
+});
+
+document.getElementById('hex-input').addEventListener('change', (e) => {
+  let hex = e.target.value.trim();
+  if (!hex.startsWith('#')) hex = '#' + hex;
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    const [r, g, b] = hexToRgb(hex);
+    setColor(r, g, b);
+  }
+});
+
+// ============================
+// Image loading
+// ============================
+function loadMapImage(filename) {
+  loading.classList.remove('hidden');
+  const img = new Image();
+  img.onload = () => {
+    state.imgWidth = img.width;
+    state.imgHeight = img.height;
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+    resetView();
+    state.undoStack = [];
+    state.redoStack = [];
+    updateUndoStatus();
+    loading.classList.add('hidden');
+    document.getElementById('status-size').textContent = `${img.width} x ${img.height}`;
+  };
+  img.onerror = () => {
+    loading.classList.add('hidden');
+    alert(`Could not load: ${filename}\n\nMake sure this HTML file is in the scripts/ folder and the image exists in public/images/`);
+  };
+  img.src = '../public/images/' + filename;
+}
+
+// Load from file
+document.getElementById('btn-load-file').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+document.getElementById('file-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  loading.classList.remove('hidden');
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      state.imgWidth = img.width;
+      state.imgHeight = img.height;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      resetView();
+      state.undoStack = [];
+      state.redoStack = [];
+      updateUndoStatus();
+      loading.classList.add('hidden');
+      document.getElementById('status-size').textContent = `${img.width} x ${img.height}`;
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// ============================
+// Pan & Zoom
+// ============================
+function resetView() {
+  const cw = container.clientWidth;
+  const ch = container.clientHeight;
+  // Fit image in view
+  const scaleX = cw / state.imgWidth;
+  const scaleY = ch / state.imgHeight;
+  state.zoom = Math.min(scaleX, scaleY, 1) * 0.95;
+  state.panX = (cw - state.imgWidth * state.zoom) / 2;
+  state.panY = (ch - state.imgHeight * state.zoom) / 2;
+  updateTransform();
+}
+
+function updateTransform() {
+  canvas.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+  canvas.style.transformOrigin = '0 0';
+  document.getElementById('zoom-indicator').textContent = Math.round(state.zoom * 100) + '%';
+}
+
+container.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = container.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const oldZoom = state.zoom;
+  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  state.zoom = Math.max(0.05, Math.min(20, state.zoom * factor));
+
+  // Zoom toward cursor
+  state.panX = mx - (mx - state.panX) * (state.zoom / oldZoom);
+  state.panY = my - (my - state.panY) * (state.zoom / oldZoom);
+  updateTransform();
+}, { passive: false });
+
+// ============================
+// Canvas coordinates
+// ============================
+function canvasCoords(e) {
+  const rect = container.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const x = Math.floor((mx - state.panX) / state.zoom);
+  const y = Math.floor((my - state.panY) / state.zoom);
+  return { x, y };
+}
+
+// ============================
+// Undo / Redo
+// ============================
+function saveUndo() {
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  state.undoStack.push(data);
+  if (state.undoStack.length > state.maxUndo) state.undoStack.shift();
+  state.redoStack = [];
+  updateUndoStatus();
+}
+
+function undo() {
+  if (state.undoStack.length === 0) return;
+  const current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  state.redoStack.push(current);
+  const prev = state.undoStack.pop();
+  ctx.putImageData(prev, 0, 0);
+  updateUndoStatus();
+}
+
+function redo() {
+  if (state.redoStack.length === 0) return;
+  const current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  state.undoStack.push(current);
+  const next = state.redoStack.pop();
+  ctx.putImageData(next, 0, 0);
+  updateUndoStatus();
+}
+
+function updateUndoStatus() {
+  document.getElementById('status-undo').textContent = `Undo: ${state.undoStack.length}`;
+}
+
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-redo').addEventListener('click', redo);
+
+// ============================
+// Flood Fill
+// ============================
+function floodFill(startX, startY, fillR, fillG, fillB, tolerance) {
+  if (startX < 0 || startX >= canvas.width || startY < 0 || startY >= canvas.height) return;
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  const w = canvas.width;
+  const h = canvas.height;
+
+  const startIdx = (startY * w + startX) * 4;
+  const sr = data[startIdx], sg = data[startIdx+1], sb = data[startIdx+2];
+
+  // Don't fill if already same color
+  if (Math.abs(sr - fillR) <= 1 && Math.abs(sg - fillG) <= 1 && Math.abs(sb - fillB) <= 1) return;
+
+  const visited = new Uint8Array(w * h);
+  const stack = [startX, startY];
+  const tol = tolerance;
+
+  function matches(idx4) {
+    return Math.abs(data[idx4] - sr) <= tol &&
+           Math.abs(data[idx4+1] - sg) <= tol &&
+           Math.abs(data[idx4+2] - sb) <= tol;
+  }
+
+  while (stack.length > 0) {
+    const y = stack.pop();
+    const x = stack.pop();
+
+    if (x < 0 || x >= w || y < 0 || y >= h) continue;
+
+    const pi = y * w + x;
+    if (visited[pi]) continue;
+
+    const idx4 = pi * 4;
+    if (!matches(idx4)) continue;
+
+    visited[pi] = 1;
+    data[idx4] = fillR;
+    data[idx4+1] = fillG;
+    data[idx4+2] = fillB;
+    // Keep alpha as is (or set to 255)
+    data[idx4+3] = 255;
+
+    stack.push(x+1, y);
+    stack.push(x-1, y);
+    stack.push(x, y+1);
+    stack.push(x, y-1);
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+// ============================
+// Brush drawing
+// ============================
+function drawBrushStroke(x, y, size, r, g, b) {
+  ctx.fillStyle = rgbToHex(r, g, b);
+  ctx.beginPath();
+  ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBrushLine(x0, y0, x1, y1, size, r, g, b) {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const steps = Math.max(Math.ceil(dist / (size * 0.3)), 1);
+
+  ctx.fillStyle = rgbToHex(r, g, b);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = x0 + dx * t;
+    const y = y0 + dy * t;
+    ctx.beginPath();
+    ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ============================
+// Eyedropper
+// ============================
+function pickColor(x, y) {
+  if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) return;
+  const pixel = ctx.getImageData(x, y, 1, 1).data;
+  setColor(pixel[0], pixel[1], pixel[2]);
+}
+
+// ============================
+// Mouse events
+// ============================
+container.addEventListener('mousedown', (e) => {
+  if (e.button === 1 || (e.button === 0 && (state.tool === 'pan' || state.spaceDown))) {
+    // Middle click or pan tool or space+click: start panning
+    state.isPanning = true;
+    state.panStartX = e.clientX;
+    state.panStartY = e.clientY;
+    state.panStartPanX = state.panX;
+    state.panStartPanY = state.panY;
+    container.style.cursor = 'grabbing';
+    e.preventDefault();
+    return;
+  }
+
+  if (e.button !== 0) return;
+
+  const { x, y } = canvasCoords(e);
+
+  if (state.tool === 'fill') {
+    saveUndo();
+    floodFill(x, y, state.color[0], state.color[1], state.color[2], state.fillTolerance);
+  } else if (state.tool === 'brush') {
+    saveUndo();
+    state.isDrawing = true;
+    state.lastX = x;
+    state.lastY = y;
+    drawBrushStroke(x, y, state.brushSize, state.color[0], state.color[1], state.color[2]);
+  } else if (state.tool === 'eraser') {
+    saveUndo();
+    state.isDrawing = true;
+    state.lastX = x;
+    state.lastY = y;
+    drawBrushStroke(x, y, state.brushSize, 255, 255, 255);
+  } else if (state.tool === 'eyedropper') {
+    pickColor(x, y);
+  }
+});
+
+container.addEventListener('mousemove', (e) => {
+  const { x, y } = canvasCoords(e);
+  document.getElementById('status-pos').textContent = `${x}, ${y}`;
+
+  if (state.isPanning) {
+    state.panX = state.panStartPanX + (e.clientX - state.panStartX);
+    state.panY = state.panStartPanY + (e.clientY - state.panStartY);
+    updateTransform();
+    return;
+  }
+
+  if (state.isDrawing) {
+    if (state.tool === 'brush') {
+      drawBrushLine(state.lastX, state.lastY, x, y, state.brushSize,
+        state.color[0], state.color[1], state.color[2]);
+    } else if (state.tool === 'eraser') {
+      drawBrushLine(state.lastX, state.lastY, x, y, state.brushSize, 255, 255, 255);
+    }
+    state.lastX = x;
+    state.lastY = y;
+  }
+});
+
+window.addEventListener('mouseup', (e) => {
+  if (state.isPanning) {
+    state.isPanning = false;
+    container.style.cursor = state.tool === 'pan' ? 'grab' : 'crosshair';
+  }
+  state.isDrawing = false;
+});
+
+// ============================
+// Keyboard shortcuts
+// ============================
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+
+  if (e.key === ' ') {
+    state.spaceDown = true;
+    container.style.cursor = 'grab';
+    e.preventDefault();
+  }
+  if (e.key === 'f' || e.key === 'F') setTool('fill');
+  if (e.key === 'b' || e.key === 'B') setTool('brush');
+  if (e.key === 'e' || e.key === 'E') setTool('eraser');
+  if (e.key === 'i' || e.key === 'I') setTool('eyedropper');
+  if (e.key === 'h' || e.key === 'H') setTool('pan');
+
+  if (e.key === '[') {
+    state.brushSize = Math.max(1, state.brushSize - 2);
+    brushSlider.value = state.brushSize;
+    brushLabel.textContent = state.brushSize + 'px';
+  }
+  if (e.key === ']') {
+    state.brushSize = Math.min(50, state.brushSize + 2);
+    brushSlider.value = state.brushSize;
+    brushLabel.textContent = state.brushSize + 'px';
+  }
+
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); }
+
+  if (e.key === '0') {
+    resetView();
+  }
+  if (e.key === '1') {
+    state.zoom = 1;
+    updateTransform();
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  if (e.key === ' ') {
+    state.spaceDown = false;
+    if (state.tool !== 'pan') container.style.cursor = 'crosshair';
+  }
+});
+
+// ============================
+// Export
+// ============================
+document.getElementById('btn-export').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = 'map_painted.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+});
+
+// ============================
+// Prevent context menu
+// ============================
+container.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// ============================
+// Window resize
+// ============================
+window.addEventListener('resize', () => {
+  // Don't reset view, just let it be
+});
+
+// ============================
+// Initial load
+// ============================
+setColor(142, 156, 130);
+
+// Try to load the cleaned colored map by default
+const img = new Image();
+img.onload = () => {
+  state.imgWidth = img.width;
+  state.imgHeight = img.height;
+  canvas.width = img.width;
+  canvas.height = img.height;
+  ctx.drawImage(img, 0, 0);
+  resetView();
+  loading.classList.add('hidden');
+  document.getElementById('status-size').textContent = `${img.width} x ${img.height}`;
+};
+img.onerror = () => {
+  // Try the uncleaned version
+  const img2 = new Image();
+  img2.onload = () => {
+    state.imgWidth = img2.width;
+    state.imgHeight = img2.height;
+    canvas.width = img2.width;
+    canvas.height = img2.height;
+    ctx.drawImage(img2, 0, 0);
+    resetView();
+    loading.classList.add('hidden');
+    document.getElementById('status-size').textContent = `${img2.width} x ${img2.height}`;
+  };
+  img2.onerror = () => {
+    // Start with a blank canvas
+    state.imgWidth = 2560;
+    state.imgHeight = 1440;
+    canvas.width = 2560;
+    canvas.height = 1440;
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, 2560, 1440);
+    resetView();
+    loading.classList.add('hidden');
+    document.getElementById('status-size').textContent = '2560 x 1440 (blank)';
+  };
+  img2.src = '../public/images/map_colored_dark.png';
+};
+img.src = '../public/images/map_colored_dark_clean.png';
+</script>
+</body>
+</html>

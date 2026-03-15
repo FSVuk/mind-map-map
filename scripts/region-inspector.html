@@ -32,6 +32,7 @@
   }
   .region-item:hover { background: #2a2a4e; }
   .region-item.active { background: #2a2a5e; outline: 1px solid #5588cc; }
+  .region-item.highlight { background: #2a2a4e; }
   .region-item .swatch {
     width: 18px; height: 18px; border-radius: 3px; border: 1px solid #555; flex-shrink: 0;
   }
@@ -68,9 +69,11 @@
   }
   .sp-actions button {
     background: #3a5a8a; color: #fff; border: 1px solid #5577aa; border-radius: 3px;
-    padding: 2px 8px; font-size: 11px; cursor: pointer;
+    padding: 2px 8px; font-size: 11px; cursor: pointer; white-space: nowrap;
   }
   .sp-actions button:hover { background: #4a6a9a; }
+  .sp-actions button.split-btn { background: #2a6e3a; border-color: #4a8e5a; font-weight: 600; }
+  .sp-actions button.split-btn:hover { background: #3a8e4a; }
   .sp-actions button.merge-btn { background: #6a5a2a; border-color: #8a7a4a; }
   .sp-actions button.merge-btn:hover { background: #7a6a3a; }
 
@@ -97,6 +100,37 @@
     display: flex; justify-content: space-between;
   }
   #status-bar .modified { color: #ffaa44; font-weight: 600; }
+
+  /* Floating action for selected subpath */
+  #subpath-action-bar {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    background: #1a1a2ef0; border: 1px solid #555; border-radius: 8px;
+    padding: 8px 16px; display: none; z-index: 50; backdrop-filter: blur(8px);
+    display: none; gap: 10px; align-items: center; font-size: 13px;
+  }
+  #subpath-action-bar .action-label { color: #8bb4e0; font-weight: 600; }
+  #subpath-action-bar button {
+    padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; border: 1px solid;
+  }
+  #subpath-action-bar .split-action { background: #2a6e3a; border-color: #4a8e5a; color: #fff; }
+  #subpath-action-bar .split-action:hover { background: #3a8e4a; }
+  #subpath-action-bar .move-action { background: #252545; border-color: #444; color: #ddd; }
+  #subpath-action-bar .move-action:hover { background: #3a3a5e; }
+  #subpath-action-bar select {
+    background: #252545; color: #ddd; border: 1px solid #555; border-radius: 4px;
+    padding: 4px 8px; font-size: 12px; cursor: pointer;
+  }
+
+  /* Pan hint */
+  #pan-hint {
+    position: absolute; bottom: 36px; right: 16px; background: #1a1a2ecc;
+    border: 1px solid #333; border-radius: 6px; padding: 6px 12px;
+    font-size: 11px; color: #666; pointer-events: none; z-index: 40;
+  }
+  #pan-hint kbd {
+    background: #252545; border: 1px solid #444; border-radius: 3px;
+    padding: 0 4px; font-size: 10px; color: #999;
+  }
 </style>
 </head>
 <body>
@@ -104,9 +138,8 @@
 <div id="sidebar">
   <h1>Region Editor</h1>
   <p class="hint">
-    Click a region to inspect it. For multi-subpath regions, you can
-    <strong style="color:#8be">reassign subpaths</strong> to different region IDs
-    or <strong style="color:#8be">merge regions</strong> together.
+    Click a region on the map or the list below.
+    For multi-subpath regions, click individual pieces to <strong style="color:#4a8e5a">split them into new regions</strong>.
   </p>
 
   <div class="toolbar">
@@ -136,8 +169,17 @@
 
 <div id="map-area">
   <div id="tooltip"></div>
+  <div id="subpath-action-bar">
+    <span class="action-label" id="action-label">Subpath 1 of Region 5</span>
+    <button class="split-action" id="action-split">⊕ Split to New Region</button>
+    <select id="action-move-target"></select>
+    <button class="move-action" id="action-move">Move</button>
+  </div>
+  <div id="pan-hint">
+    <kbd>Scroll</kbd> zoom · <kbd>Drag</kbd> pan · <kbd>Click</kbd> select · <kbd>Esc</kbd> reset
+  </div>
   <div id="status-bar">
-    <span id="status-text">Load complete</span>
+    <span id="status-text">Loading…</span>
     <span id="status-modified"></span>
   </div>
 </div>
@@ -145,10 +187,24 @@
 <script>
 const SVG_PATH = '../public/images/map_base.svg';
 
+// ── Maximally-distinct color palette ──────────────────────────
+// 50 hand-picked hues spread across the spectrum to minimize confusion
+const DISTINCT_COLORS = [
+  '#e6194b','#3cb44b','#ffe119','#4363d8','#f58231',
+  '#911eb4','#42d4f4','#f032e6','#bfef45','#fabed4',
+  '#469990','#dcbeff','#9A6324','#fffac8','#800000',
+  '#aaffc3','#808000','#ffd8b1','#000075','#a9a9a9',
+  '#e6beff','#1abc9c','#e74c3c','#3498db','#2ecc71',
+  '#9b59b6','#f1c40f','#e67e22','#1a5276','#d35400',
+  '#7d3c98','#2980b9','#27ae60','#c0392b','#f39c12',
+  '#8e44ad','#16a085','#2c3e50','#d4ac0d','#a04000',
+  '#1f618d','#117a65','#b03a2e','#6c3483','#1e8449',
+  '#d68910','#2e4053','#a93226','#148f77','#b7950b',
+];
+
 function regionColor(id) {
   const n = parseInt(id);
-  const hue = ((n - 1) * 360 / 43 + 15) % 360;
-  return `hsl(${hue}, 60%, 50%)`;
+  return DISTINCT_COLORS[(n - 1) % DISTINCT_COLORS.length];
 }
 
 const SP_COLORS = [
@@ -157,13 +213,20 @@ const SP_COLORS = [
 ];
 
 let svgEl = null;
-let svgText = '';      // original SVG text for export
-let regionData = [];   // { id, subpaths: string[] } — the source of truth
+let svgText = '';
+let regionData = [];
 let labelsVisible = false;
 let activeRegionId = null;
 let activeSubpathIdx = null;
-let changeLog = [];    // { description, before: regionData snapshot }
+let changeLog = [];
 let dirty = false;
+
+// ── Pan & zoom state ────────────────────────────────────────
+let currentVB = { x: 0, y: 0, w: 2690, h: 1123 };
+let isPanning = false;
+let panStart = { x: 0, y: 0 };
+let vbStart = { x: 0, y: 0 };
+let hasDragged = false;
 
 // ── Init ──────────────────────────────────────────────────────
 
@@ -174,9 +237,15 @@ async function init() {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgText, 'image/svg+xml');
   svgEl = doc.querySelector('svg');
-  document.getElementById('map-area').insertBefore(svgEl, document.getElementById('status-bar'));
+  document.getElementById('map-area').insertBefore(svgEl, document.getElementById('subpath-action-bar'));
 
-  // Parse region paths into data model
+  // Parse ocean color from the background rect
+  const bgRect = svgEl.querySelector('rect');
+  if (bgRect) {
+    const fill = bgRect.getAttribute('fill');
+    if (fill) oceanColor = fill;
+  }
+
   const paths = svgEl.querySelectorAll('path[data-region]');
   paths.forEach(p => {
     const id = p.getAttribute('data-region');
@@ -187,9 +256,17 @@ async function init() {
 
   regionData.sort((a, b) => parseInt(a.id) - parseInt(b.id));
 
+  // Read original viewBox
+  const vb = svgEl.getAttribute('viewBox');
+  if (vb) {
+    const parts = vb.split(/\s+/).map(Number);
+    currentVB = { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
+  }
+
+  setupPanZoom();
   renderMap();
   buildRegionList();
-  setStatus(`Loaded ${regionData.length} regions`);
+  setStatus(`Loaded ${regionData.length} regions — scroll to zoom, drag to pan`);
 }
 
 function splitSubpaths(d) {
@@ -208,15 +285,91 @@ function splitSubpaths(d) {
   return parts;
 }
 
+// ── Pan & zoom ────────────────────────────────────────────────
+
+function setupPanZoom() {
+  const mapArea = document.getElementById('map-area');
+
+  mapArea.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 0.85 : 1.18;
+    const rect = svgEl.getBoundingClientRect();
+
+    // Mouse position in SVG coordinates
+    const mx = currentVB.x + ((e.clientX - rect.left) / rect.width) * currentVB.w;
+    const my = currentVB.y + ((e.clientY - rect.top) / rect.height) * currentVB.h;
+
+    const nw = Math.max(200, Math.min(5000, currentVB.w * factor));
+    const nh = Math.max(100, Math.min(2500, currentVB.h * factor));
+
+    currentVB = {
+      x: mx - nw * ((mx - currentVB.x) / currentVB.w),
+      y: my - nh * ((my - currentVB.y) / currentVB.h),
+      w: nw,
+      h: nh,
+    };
+    applyViewBox();
+  }, { passive: false });
+
+  mapArea.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    isPanning = true;
+    hasDragged = false;
+    panStart = { x: e.clientX, y: e.clientY };
+    vbStart = { x: currentVB.x, y: currentVB.y };
+    svgEl.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    const dx = e.clientX - panStart.x;
+    const dy = e.clientY - panStart.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasDragged = true;
+    const rect = svgEl.getBoundingClientRect();
+    currentVB.x = vbStart.x - (dx / rect.width) * currentVB.w;
+    currentVB.y = vbStart.y - (dy / rect.height) * currentVB.h;
+    applyViewBox();
+  });
+
+  window.addEventListener('mouseup', () => {
+    isPanning = false;
+    if (svgEl) svgEl.style.cursor = 'grab';
+  });
+
+  svgEl.style.cursor = 'grab';
+}
+
+function applyViewBox() {
+  svgEl.setAttribute('viewBox', `${currentVB.x} ${currentVB.y} ${currentVB.w} ${currentVB.h}`);
+}
+
+function animateToViewBox(target, duration = 350) {
+  const start = { ...currentVB };
+  const startTime = performance.now();
+  const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+  function animate(now) {
+    const t = Math.min(1, (now - startTime) / duration);
+    const e = ease(t);
+    currentVB = {
+      x: start.x + (target.x - start.x) * e,
+      y: start.y + (target.y - start.y) * e,
+      w: start.w + (target.w - start.w) * e,
+      h: start.h + (target.h - start.h) * e,
+    };
+    applyViewBox();
+    if (t < 1) requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+}
+
 // ── Render map from data model ────────────────────────────────
 
 function renderMap() {
-  // Remove existing region paths
   const regionsGroup = svgEl.querySelector('#regions');
   if (regionsGroup) {
     regionsGroup.querySelectorAll('path[data-region]').forEach(p => p.remove());
 
-    // Re-create paths from data model
     regionData.forEach(rd => {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('data-region', rd.id);
@@ -225,10 +378,19 @@ function renderMap() {
       path.setAttribute('fill-rule', 'evenodd');
       path.style.cursor = 'pointer';
 
-      path.addEventListener('mouseenter', (e) => showTooltip(e, rd.id, rd.subpaths.length));
+      path.addEventListener('mouseenter', (e) => {
+        showTooltip(e, rd.id, rd.subpaths.length);
+        highlightSidebarItem(rd.id, true);
+      });
       path.addEventListener('mousemove', (e) => moveTooltip(e));
-      path.addEventListener('mouseleave', hideTooltip);
-      path.addEventListener('click', () => selectRegion(rd.id));
+      path.addEventListener('mouseleave', () => {
+        hideTooltip();
+        highlightSidebarItem(rd.id, false);
+      });
+      path.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!hasDragged) selectRegion(rd.id);
+      });
 
       regionsGroup.appendChild(path);
     });
@@ -236,7 +398,18 @@ function renderMap() {
 
   clearLabels();
   clearSubpathOverlays();
+  hideActionBar();
   if (labelsVisible) showLabels();
+}
+
+// ── Sidebar highlight on hover ────────────────────────────────
+
+function highlightSidebarItem(id, on) {
+  const item = document.querySelector(`.region-item[data-region-id="${id}"]`);
+  if (item && !item.classList.contains('active')) {
+    item.classList.toggle('highlight', on);
+    if (on) item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
 }
 
 // ── Region list ───────────────────────────────────────────────
@@ -259,6 +432,22 @@ function buildRegionList() {
         ${rd.subpaths.length} subpath${rd.subpaths.length !== 1 ? 's' : ''}
       </span>
     `;
+
+    // Hover highlights the map region
+    div.addEventListener('mouseenter', () => {
+      const pathEl = svgEl.querySelector(`path[data-region="${rd.id}"]`);
+      if (pathEl && rd.id !== activeRegionId) {
+        pathEl.style.filter = 'brightness(1.4) drop-shadow(0 0 6px #fff8)';
+      }
+    });
+    div.addEventListener('mouseleave', () => {
+      const pathEl = svgEl.querySelector(`path[data-region="${rd.id}"]`);
+      if (pathEl && rd.id !== activeRegionId) {
+        pathEl.style.filter = activeRegionId ? '' : '';
+        pathEl.style.opacity = activeRegionId ? '0.25' : '1';
+      }
+    });
+
     div.addEventListener('click', () => selectRegion(rd.id));
     list.appendChild(div);
   });
@@ -272,9 +461,14 @@ function selectRegion(id) {
 
   document.querySelectorAll('.region-item').forEach(el => {
     el.classList.toggle('active', el.dataset.regionId === id);
+    el.classList.remove('highlight');
   });
 
-  // Dim other regions
+  // Scroll sidebar to active item
+  const activeItem = document.querySelector(`.region-item[data-region-id="${id}"]`);
+  if (activeItem) activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+  // Dim other regions, highlight selected
   svgEl.querySelectorAll('path[data-region]').forEach(p => {
     if (p.getAttribute('data-region') === id) {
       p.style.filter = 'brightness(1.3) drop-shadow(0 0 6px #fff8)';
@@ -293,10 +487,10 @@ function selectRegion(id) {
   const multi = rd.subpaths.length > 1;
   document.getElementById('info-body').innerHTML = multi
     ? `<span style="color:#f66;font-weight:600;">Multiple disconnected areas!</span><br>
-       Use the <strong>Move to</strong> dropdown to reassign a subpath to a different region.`
+       Click a colored subpath on the map, then use <strong style="color:#4a8e5a">⊕ Split</strong> to make it its own region.`
     : `Single contiguous path.`;
 
-  // Build subpath entries with reassignment controls
+  // Build subpath entries
   const spList = document.getElementById('subpath-list');
   spList.innerHTML = '';
 
@@ -305,33 +499,21 @@ function selectRegion(id) {
     entry.className = 'subpath-entry';
     entry.dataset.spIdx = idx;
 
-    // Build target region dropdown (all existing IDs + "New region")
-    const nextId = getNextRegionId();
-    let options = `<option value="" disabled selected>Move to...</option>`;
-    regionData.forEach(r => {
-      if (r.id !== id) {
-        options += `<option value="${r.id}">Region ${r.id}</option>`;
-      }
-    });
-    options += `<option value="__new__">New region (${nextId})</option>`;
-
     entry.innerHTML = `
       <div class="sp-swatch" style="background:${SP_COLORS[idx % SP_COLORS.length]}"></div>
       <span>Subpath ${idx + 1}</span>
       <div class="sp-actions">
-        <select onchange="moveSubpath('${id}', ${idx}, this.value); this.selectedIndex=0;">
-          ${options}
-        </select>
+        <button class="split-btn" title="Split this subpath into its own new region" onclick="event.stopPropagation(); splitSubpath('${id}', ${idx});">⊕ Split</button>
       </div>
     `;
     entry.addEventListener('click', (e) => {
-      if (e.target.tagName === 'SELECT' || e.target.tagName === 'OPTION') return;
+      if (e.target.tagName === 'BUTTON') return;
       isolateSubpath(id, idx);
     });
     spList.appendChild(entry);
   });
 
-  // Merge section — merge entire region into another
+  // Merge section
   const mergeSection = document.getElementById('merge-section');
   let mergeOptions = `<option value="" disabled selected>Merge all into...</option>`;
   regionData.forEach(r => {
@@ -355,9 +537,10 @@ function selectRegion(id) {
     showSubpathOverlays(rd);
   } else {
     clearSubpathOverlays();
+    hideActionBar();
   }
 
-  // Zoom to region
+  // Smooth-zoom to region
   const pathEl = svgEl.querySelector(`path[data-region="${id}"]`);
   if (pathEl) zoomToRegion(pathEl);
 }
@@ -367,26 +550,31 @@ function getNextRegionId() {
   return String(Math.max(...ids) + 1);
 }
 
+// ── Split subpath to new region (one-click) ───────────────────
+
+function splitSubpath(fromId, subpathIdx) {
+  const newId = getNextRegionId();
+  moveSubpath(fromId, subpathIdx, '__new__');
+}
+
 // ── Move subpath to different region ──────────────────────────
 
 function moveSubpath(fromId, subpathIdx, toId) {
   const fromRd = regionData.find(r => r.id === fromId);
   if (!fromRd || subpathIdx >= fromRd.subpaths.length) return;
   if (fromRd.subpaths.length <= 1 && toId !== '__new__') {
-    // Can't leave a region empty — this would merge it
     if (!confirm(`This will remove region ${fromId} entirely (moving its only subpath). Continue?`)) return;
   }
 
-  // Save undo state
   saveUndo(`Move subpath ${subpathIdx + 1} from region ${fromId} to ${toId === '__new__' ? 'new region' : 'region ' + toId}`);
 
   const subpath = fromRd.subpaths.splice(subpathIdx, 1)[0];
 
+  let targetId = toId;
   if (toId === '__new__') {
-    const newId = getNextRegionId();
-    regionData.push({ id: newId, subpaths: [subpath] });
+    targetId = getNextRegionId();
+    regionData.push({ id: targetId, subpaths: [subpath] });
     regionData.sort((a, b) => parseInt(a.id) - parseInt(b.id));
-    toId = newId;
   } else {
     const toRd = regionData.find(r => r.id === toId);
     if (toRd) toRd.subpaths.push(subpath);
@@ -401,10 +589,9 @@ function moveSubpath(fromId, subpathIdx, toId) {
   markDirty();
   renderMap();
   buildRegionList();
-  setStatus(`Moved subpath to region ${toId}`);
+  setStatus(`Moved subpath → region ${targetId}`);
 
-  // Re-select the target region
-  selectRegion(toId);
+  selectRegion(targetId);
 }
 
 // ── Merge entire region into another ──────────────────────────
@@ -484,6 +671,9 @@ function isolateSubpath(regionId, idx) {
     el.classList.toggle('active', i === idx);
   });
 
+  // Show floating action bar
+  showActionBar(regionId, idx);
+
   // Zoom to subpath
   const rd = regionData.find(r => r.id === regionId);
   if (!rd) return;
@@ -494,12 +684,60 @@ function isolateSubpath(regionId, idx) {
   tempPath.remove();
 }
 
+// ── Floating action bar ──────────────────────────────────────
+
+function showActionBar(regionId, subpathIdx) {
+  const bar = document.getElementById('subpath-action-bar');
+  const rd = regionData.find(r => r.id === regionId);
+  if (!rd) return;
+
+  document.getElementById('action-label').textContent =
+    `Subpath ${subpathIdx + 1} of Region ${regionId}`;
+
+  // Split button
+  document.getElementById('action-split').onclick = () => splitSubpath(regionId, subpathIdx);
+
+  // Move dropdown
+  const select = document.getElementById('action-move-target');
+  let options = `<option value="" disabled selected>Move to…</option>`;
+  regionData.forEach(r => {
+    if (r.id !== regionId) options += `<option value="${r.id}">Region ${r.id}</option>`;
+  });
+  select.innerHTML = options;
+
+  document.getElementById('action-move').onclick = () => {
+    const toId = select.value;
+    if (!toId) { alert('Pick a target region from the dropdown.'); return; }
+    moveSubpath(regionId, subpathIdx, toId);
+  };
+
+  bar.style.display = 'flex';
+}
+
+function hideActionBar() {
+  document.getElementById('subpath-action-bar').style.display = 'none';
+}
+
 // ── Zoom ──────────────────────────────────────────────────────
 
 function zoomToRegion(pathEl) {
   const bbox = pathEl.getBBox();
   const pad = Math.max(bbox.width, bbox.height) * 0.25;
-  svgEl.setAttribute('viewBox', `${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`);
+
+  const svgRect = svgEl.getBoundingClientRect();
+  const aspect = svgRect.width / svgRect.height;
+
+  let tw = bbox.width + pad * 2;
+  let th = bbox.height + pad * 2;
+  if (tw / th > aspect) th = tw / aspect;
+  else tw = th * aspect;
+
+  animateToViewBox({
+    x: bbox.x + bbox.width / 2 - tw / 2,
+    y: bbox.y + bbox.height / 2 - th / 2,
+    w: tw,
+    h: th,
+  });
 }
 
 // ── Undo ──────────────────────────────────────────────────────
@@ -549,16 +787,13 @@ function updateUndoLog() {
 // ── Export ─────────────────────────────────────────────────────
 
 function exportSVG() {
-  // Rebuild SVG from the original, replacing only the region paths
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgText, 'image/svg+xml');
   const svg = doc.querySelector('svg');
   const regGroup = svg.querySelector('#regions');
 
-  // Remove old region paths
   regGroup.querySelectorAll('path[data-region]').forEach(p => p.remove());
 
-  // Add updated region paths
   regionData.forEach(rd => {
     const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', rd.subpaths.join(' '));
@@ -570,10 +805,8 @@ function exportSVG() {
 
   const serializer = new XMLSerializer();
   let output = serializer.serializeToString(svg);
-  // Add XML declaration
   output = '<?xml version="1.0" encoding="UTF-8"?>\n' + output;
 
-  // Download
   const blob = new Blob([output], { type: 'image/svg+xml' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -638,12 +871,16 @@ function resetView() {
   activeRegionId = null;
   activeSubpathIdx = null;
   clearSubpathOverlays();
-  svgEl.setAttribute('viewBox', '0 0 2690 1123');
+  hideActionBar();
+  animateToViewBox({ x: 0, y: 0, w: 2690, h: 1123 });
   svgEl.querySelectorAll('path[data-region]').forEach(p => {
     p.style.filter = '';
     p.style.opacity = '1';
   });
-  document.querySelectorAll('.region-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.region-item').forEach(el => {
+    el.classList.remove('active');
+    el.classList.remove('highlight');
+  });
   document.getElementById('info-panel').style.display = 'none';
   document.getElementById('merge-section').innerHTML = '';
 }
@@ -703,7 +940,6 @@ window.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undoAction(); }
 });
 
-// Warn before leaving with unsaved changes
 window.addEventListener('beforeunload', (e) => {
   if (dirty) { e.preventDefault(); e.returnValue = ''; }
 });

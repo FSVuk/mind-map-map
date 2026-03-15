@@ -93,12 +93,15 @@ export default function PinEditor({ pinId }: PinEditorProps) {
         />
       </div>
 
-      {/* City children */}
+      {/* City children — disabled for this release */}
       {pin.type === "city" && (
-        <div>
-          <label className="block text-[10px] font-display tracking-wider text-vanzemla-text-dim uppercase mb-2">
+        <div className="opacity-40 pointer-events-none select-none">
+          <label className="block text-[10px] font-display tracking-wider text-vanzemla-text-dim uppercase mb-1">
             Child Pins ({childPins.length})
           </label>
+          <p className="text-[10px] text-vanzemla-text-dim italic mb-2">
+            Coming soon
+          </p>
           {childPins.length === 0 ? (
             <p className="text-xs text-vanzemla-text-dim italic">
               No child pins yet
